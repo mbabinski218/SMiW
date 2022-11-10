@@ -5,7 +5,7 @@
 #include <driver/rtc_io.h>
 #include "webPage.h"
 #include <sstream>
-#include <string>
+#include "xml.h"
 
 // wifi
 const char *ssid = "esp32";
@@ -22,6 +22,8 @@ const int led = 2;
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 3600;
 const int daylightOffset_sec = 3600;
+String startTimeString = "";
+String endTimeString = "";
 tm* localTime = nullptr;
 tm* startTime = nullptr;
 tm* endTime = nullptr;
@@ -31,7 +33,6 @@ int buttonLastState = HIGH;
 int buttonCurrentState = HIGH;
 bool isSleep = false;
 bool disable = true;
-bool calculating = false;
 
 // generates a number between min and max
 int randomFrequencyGenerator(int min, int max)
@@ -66,7 +67,7 @@ void deepSleep()
 }
 
 // method that will be executed after exiting the sleep mode
-void afterSleep()
+void powerOn()
 {
 	disable = false;
 	isSleep = false;
@@ -100,7 +101,7 @@ void getLocalTimeFromNtpServer()
   	}
 }
 
-void Time()
+void time()
 {	
 	getLocalTimeFromNtpServer();
 
@@ -109,7 +110,7 @@ void Time()
 		int start = localTime->tm_hour * 60 + localTime->tm_min - startTime->tm_hour * 60 - startTime->tm_min;
 		if(disable && start == 0)
 		{
-			afterSleep();
+			powerOn();
 			return;
 		}
 	}
@@ -131,17 +132,22 @@ void handleOnConnect()
 	server.send(200, "text/html", mainPage);
 }
 
-// void handleGetData()
-// {
-// 	server.send(200, "xml")
-// }
+void handleInfo()
+{
+	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
+}
+
+void handleData()
+{
+	//xml::sendData(server, data);
+}
 
 void handelPower()
 {
 	if(disable)
 	{
 		Serial.println("ESP: turn on");
-		afterSleep();
+		powerOn();
 	}
 	else
 	{
@@ -160,18 +166,27 @@ void handleSleep()
 
 void handleStartTime()
 {
-	String value = server.arg("VALUE");
-	Serial.println("ESP: start time: " + value);
+	startTimeString = server.arg("VALUE");
+	Serial.println("ESP: start time: " + startTimeString);
 	startTime = new tm();
-	SetTime(value, startTime);
+	SetTime(startTimeString, startTime);
 }
 
 void handleEndTime()
 {
-	String value = server.arg("VALUE");
-	Serial.println("ESP: end time: " + value);
+	endTimeString = server.arg("VALUE");
+	Serial.println("ESP: end time: " + endTimeString);
 	endTime = new tm();
-	SetTime(value, endTime);
+	SetTime(endTimeString, endTime);
+}
+
+void checkWifi()
+{
+	while (WiFi.status() != WL_CONNECTED)
+	{
+		delay(1000);
+		Serial.print(".");
+	}
 }
 
 void setup()
@@ -191,11 +206,7 @@ void setup()
 	WiFi.begin(ssid, password);
 
 	// waiting for connection
-	while (WiFi.status() != WL_CONNECTED)
-	{
-		delay(1000);
-		Serial.print(".");
-	}
+	checkWifi();
 
 	// setting up the server
 	server.on("/", handleOnConnect);
@@ -203,6 +214,8 @@ void setup()
 	server.on("/sleep", handleSleep);
 	server.on("/startTime", handleStartTime);
 	server.on("/endTime", handleEndTime);
+	server.on("/info", handleInfo);
+	server.on("/data", handleData);
 
 	server.begin();
 	Serial.println("\nHTTP server started");
@@ -217,10 +230,12 @@ void setup()
 
 void loop()
 {
-	Time();
-
-	// wifi client
+	// wifi
+	checkWifi();
 	server.handleClient();
+
+	// time
+	time();
 
 	// button
 	buttonCurrentState = digitalRead(button);
@@ -234,7 +249,7 @@ void loop()
 		else
 		{
 			Serial.println("ESP: deep sleep off");
-			afterSleep();
+			powerOn();
 		}
 	}
 	buttonLastState = buttonCurrentState;
