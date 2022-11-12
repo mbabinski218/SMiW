@@ -17,6 +17,15 @@ const char mainPage[] PROGMEM = R"=====(
             display:inline;
         }
 
+        .small {
+            font-family: "Verdana", "Arial", sans-serif;
+            font-size: 3rem;
+            text-align: left;
+            font-weight: light;
+            border-radius: 5rem;
+            padding-left: 1rem;
+        }
+
         .navbar {
             width: 100%;
             height: 6rem;
@@ -88,17 +97,17 @@ const char mainPage[] PROGMEM = R"=====(
         <button type="button" class="btn" id="btn0" onclick="powerButtonPress()">Turn On</button>                                        
         <br><br>
         <div class="text">Work hours:</div>
-        <br>
-        
-        <input type="time" class="btn" id="time1" name="time1" oninput="updateStartTime()"</input>                   
-        
+        <br>        
+        <input type="time" class="btn" id="time1" name="time1" oninput="updateStartTime()"</input>          
         <input type="time" class="btn" id="time2" name="time1" oninput="updateEndTime()"</input>                      
         <br><br>
         <div class="text">Sleep</div>
-        <button type="button" class="btn" id="btn1" onclick="deepSleepButtonPress()">Turn On</button>                                         
+        <button type="button" class="btn" id="btn1" onclick="sleepButtonPress()">Turn On</button>                                         
         <br><br>
         <div class="text">Data </div>
-        <button type="button" class="btn" id="btn2" onclick="getDataButtonPress()">Download</button>                                               
+        <button type="button" class="btn" id="btn2" onclick="getDataButtonPress()">Get</button>
+        <br><br>  
+        <div class="small" id="data"></div>                                           
     </body>
 
     <script type = "text/javascript">
@@ -106,71 +115,114 @@ const char mainPage[] PROGMEM = R"=====(
 
         function connection() {
             if(xmlHttp.readyState == 0 || xmlHttp.readyState == 4) {
-                xmlHttp.open("PUT", "/", true);
-                xmlHttp.send(null);
-            } 
+                xmlHttp.open("POST", "/", false);
+                xmlHttp.send();
+
+                var response = new XMLHttpRequest();
+                response.open("GET", "/info", false);
+                response.send();
+                if(response.readyState == 4 && response.status == 200) {
+                    update(response);
+                }                  
+            }
         }
 
         function powerButtonPress() {
             var request = new XMLHttpRequest();
-            var btn = document.getElementById('btn0');
+            request.open("POST", "power", false);
+            request.send();
 
-            request.onreadystatechange = function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    if(btn.textContent == "Turn Off") {
-                        btn.textContent = "Turn On";
-                    }
-                    else {
-                        btn.textContent = "Turn Off";
-                    }
-                }
-            }
-
-            request.open("PUT", "power", false);
-            request.send(); 
+            if(request.readyState == 4 && request.status == 200) {
+                update(request);
+            }    
         }
 
         function updateStartTime(startTime) {
             var request = new XMLHttpRequest();
-            var startTime = document.getElementById('time1')
-
-            request.open("PUT", "startTime?VALUE=" + startTime.value, true);
+            var startTime = document.getElementById('time1').value;
+            request.open("POST", "startTime?VALUE=" + startTime, false);
             request.send(); 
+
+            if(request.readyState == 4 && request.status == 200) {
+                update(request);
+            } 
         }
 
         function updateEndTime(endTime) {
             var request = new XMLHttpRequest();
-            var endTime = document.getElementById('time2')
+            var endTime = document.getElementById('time2').value;
+            request.open("POST", "endTime?VALUE=" + endTime, false);
+            request.send();
 
-            request.open("PUT", "endTime?VALUE=" + endTime.value, true);
-            request.send(); 
+            if(request.readyState == 4 && request.status == 200) {
+                update(request);
+            } 
         }
 
-        function deepSleepButtonPress() {
+        function sleepButtonPress() {
             var request = new XMLHttpRequest();
-            var btn0 = document.getElementById('btn0');
-            var btn1 = document.getElementById('btn1');
-            var btn2 = document.getElementById('btn2');
+            request.open("POST", "sleep", false);
+            request.send();
 
-            request.onreadystatechange = function() {
-                if (this.readyState == 4 && this.status == 200) {
-                    if(btn1.textContent == "Turn On") {
-                        btn1.textContent = "Activated";
-                        btn0.textContent = "Blocked";
-                        btn2.textContent = "Blocked";
-                    }
-                    else {
-                        btn1.textContent = "Turn On";
-                    }
-                }
-            }
-
-            request.open("PUT", "sleep", false);
-            request.send(); 
+            if(request.readyState == 4 && request.status == 200) {
+                update(request);
+            } 
         }
 
         function getDataButtonPress() {
+            var response = new XMLHttpRequest();
+            response.open("GET", "/data", false);
+            response.send();
 
+            if(response.readyState == 4 && response.status == 200) {
+                var text;
+                var data = response.responseXML.getElementsByTagName("Data")[0].childNodes[0].nodeValue;
+                if(data !== "empty") {
+                    text = "Motion detected:\n" + data;
+                }
+                else {
+                    text = "No motion detected";
+                }
+
+                document.getElementById('data').textContent = text;
+            }
+        }
+
+        function update(response) {
+            var xmlDoc = response.responseXML.getElementsByTagName("Info")[0];
+
+            var modeBtn = document.getElementById('btn0');
+            var sleepBtn = document.getElementById('btn1');
+            var dataBtn = document.getElementById('btn2');
+
+            var mode = xmlDoc.getElementsByTagName("Mode")[0].childNodes[0].nodeValue;
+            var sleep = xmlDoc.getElementsByTagName("Sleep")[0].childNodes[0].nodeValue;
+            var startTime = xmlDoc.getElementsByTagName("StartTime")[0].childNodes[0].nodeValue;
+            var endTime = xmlDoc.getElementsByTagName("EndTime")[0].childNodes[0].nodeValue;
+
+            if(mode === "1") {
+                modeBtn.textContent = "Turn Off";
+            }
+            else {
+                modeBtn.textContent = "Turn On";
+            }
+            
+            if(sleep === "1") {
+                modeBtn.textContent = "Blocked";
+                sleepBtn.textContent = "Activated";
+                dataBtn.textContent = "Blocked";
+            }
+            else {
+                sleepBtn.textContent = "Turn On";
+            }
+
+            if(startTime !== "not set") {
+                document.getElementById('time1').value = startTime;            
+            }
+
+            if(endTime !== "not set") {
+                document.getElementById('time2').value = endTime; 
+            }
         }
 
     </script>

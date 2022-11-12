@@ -1,4 +1,3 @@
-#include <WebServer.h>
 
 class xml 
 {
@@ -18,24 +17,34 @@ void xml::sendInfo(WebServer &server, bool &disable, bool &sleep, String &startT
     strcpy(XML, "<?xml version = '1.0'?>\n<Info>\n");
 
     // sleep
-    if (sleep) 
+    if(sleep) 
         strcat(XML, "<Sleep>1</Sleep>\n");
     else 
         strcat(XML, "<Sleep>0</Sleep>\n");
 
     // mode
-    if (disable) 
+    if(disable) 
         strcat(XML, "<Mode>0</Mode>\n");
     else 
         strcat(XML, "<Mode>1</Mode>\n");
 
     // start time
-    sprintf(temp, "<StartTime>%s</StartTime>\n", startTime);
-    strcat(XML, temp);
+    if(startTime != "")
+    {
+        sprintf(temp, "<StartTime>%s</StartTime>\n", startTime);
+        strcat(XML, temp);
+    }
+    else
+        strcat(XML, "<StartTime>not set</StartTime>\n");
 
     // end time
-    sprintf(temp, "<EndTime>%s</EndTime>\n", endTime);
-    strcat(XML, temp);
+    if(endTime != "")
+    {
+        sprintf(temp, "<EndTime>%s</EndTime>\n", endTime);
+        strcat(XML, temp);
+    }
+    else
+        strcat(XML, "<EndTime>not set</EndTime>\n");
 
     // end 
     strcat(XML, "</Info>\n");
@@ -51,11 +60,19 @@ void xml::sendData(WebServer &server, String &data)
     char temp[32];
 
     // header
-    strcpy(XML, "<?xml version = '1.0'?>\n<Data>\n");
+    strcpy(XML, "<?xml version = '1.0'?>\n<Data>");
 
     // data
-    sprintf(temp, "%s\n", data);
-    strcat(XML, temp);
+    if(!data.isEmpty())
+    {
+        sprintf(temp, "\n%s", data);
+        strcat(XML, temp);
+    }
+    else 
+    {
+        sprintf(temp, "empty", data);
+        strcat(XML, temp);
+    }
 
     // end 
     strcat(XML, "</Data>\n");
