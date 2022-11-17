@@ -56,16 +56,16 @@ void xml::sendInfo(WebServer &server, bool &disable, bool &sleep, String &startT
 
 void xml::sendData(WebServer &server, String &data)
 {
-    char XML[2048];
-    char temp[32];
+    char XML[data.length() + 200];
+    char temp[data.length() + 1];
 
     // header
-    strcpy(XML, "<?xml version = '1.0'?>\n<Data>");
+    strcpy(XML, "<?xml version = '1.0'?>\n<Data>\n");
 
     // data
     if(!data.isEmpty())
     {
-        sprintf(temp, "\n%s", data);
+        data.toCharArray(temp, data.length() + 1);
         strcat(XML, temp);
     }
     else 

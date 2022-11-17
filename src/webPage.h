@@ -17,15 +17,6 @@ const char mainPage[] PROGMEM = R"=====(
             display:inline;
         }
 
-        .small {
-            font-family: "Verdana", "Arial", sans-serif;
-            font-size: 3rem;
-            text-align: left;
-            font-weight: light;
-            border-radius: 5rem;
-            padding-left: 1rem;
-        }
-
         .navbar {
             width: 100%;
             height: 6rem;
@@ -107,7 +98,7 @@ const char mainPage[] PROGMEM = R"=====(
         <div class="text">Data </div>
         <button type="button" class="btn" id="btn2" onclick="getDataButtonPress()">Get</button>
         <br><br>  
-        <div class="small" id="data"></div>                                           
+        <div class="text" id="data"></div>                                           
     </body>
 
     <script type = "text/javascript">
@@ -178,13 +169,14 @@ const char mainPage[] PROGMEM = R"=====(
                 var text;
                 var data = response.responseXML.getElementsByTagName("Data")[0].childNodes[0].nodeValue;
                 if(data !== "empty") {
-                    text = "Motion detected:\n" + data;
+                    data = data.replace(/(?:\r\n|\r|\n)/g, '<br>');
+                    text = "Motion detected: <br>" + data;
                 }
                 else {
                     text = "No motion detected";
                 }
 
-                document.getElementById('data').textContent = text;
+                document.getElementById('data').innerHTML = text;
             }
         }
 

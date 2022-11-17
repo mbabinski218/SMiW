@@ -75,7 +75,9 @@ void sleep()
 	esp_sleep_enable_wifi_wakeup();
 
 	if(startTime != nullptr)
+	{
 		//esp_sleep_enable_timer_wakeup();
+	}
 
 	esp_light_sleep_start();
 }
@@ -146,7 +148,11 @@ void handleInfo()
 void handleData()
 {
 	File file = SPIFFS.open("/data.txt", FILE_READ);
-	String data = file.readString();
+	String data = "";
+
+	while(file.available()) 
+        data = file.readString();
+
 	xml::sendData(server, data);
 	file.close();
 }
@@ -307,7 +313,7 @@ void loop()
 		if (detected == HIGH)
 		{			
 			// tone
-			tone(speaker, 4000);
+			tone(speaker, 18000);
 
 			// check flash
 			checkFlash();
@@ -318,14 +324,18 @@ void loop()
 				shouldSave = false;		
 				String hour = localTime->tm_hour < 10 ? "0" + (String)(localTime->tm_hour) : (String)(localTime->tm_hour);
 				String min = localTime->tm_min < 10 ? "0" + (String)(localTime->tm_min) : (String)(localTime->tm_min);
-				String temp = hour + ":" + min;
+				String temp = (String)localTime->tm_mday + "." + (String)(localTime->tm_mon + 1) + "." + (String)(localTime->tm_year + 1900) + " " + hour + ":" + min;
 				Serial.println("ESP: detected - " + temp);
 
 				File file = SPIFFS.open("/data.txt", FILE_APPEND);
 				if(file)
-					file.println(temp);
+				{
+					if(!file.println(temp))
+						Serial.println("ESP: file append failed");
+				}
 				else
-					Serial.println("There was an error opening the file");
+					Serial.println("ESP: there was an error opening the file");
+
 				file.close();
 			}
 		}
