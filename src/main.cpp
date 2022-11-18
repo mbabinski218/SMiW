@@ -16,7 +16,7 @@ WebServer server(80);
 // pinout
 const int speaker = 25;
 const int pir = 32;
-const int button = 27;
+const int button = 33;
 const int led = 2;
 
 // time
@@ -53,6 +53,7 @@ void powerOff()
 {
 	disable = true;
 	enableLed(false);
+	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
 }
 
 // method that will be executed after exiting the sleep mode
@@ -61,7 +62,8 @@ void powerOn()
 	disable = false;
 	isSleep = false;
 	enableLed(true);
-	Serial.println(esp_sleep_get_wakeup_cause()); // ext0 = 2, wifi = 9
+	Serial.println(esp_sleep_get_wakeup_cause()); // ext0 = 2, wifi = 9, time = 4
+	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
 }
 
 // starts the sleep mode
@@ -70,16 +72,14 @@ void sleep()
 	disable = true;
 	isSleep = true;
 	enableLed(false);
-	rtc_gpio_pullup_en(GPIO_NUM_27);
-	esp_sleep_enable_ext0_wakeup(GPIO_NUM_27, 0);
-	esp_sleep_enable_wifi_wakeup();
+	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
 
+	esp_sleep_enable_ext0_wakeup(GPIO_NUM_33, LOW);
 	if(startTime != nullptr)
-	{
-		//esp_sleep_enable_timer_wakeup();
-	}
+		esp_sleep_enable_timer_wakeup((localTime->tm_hour * 60 + localTime->tm_min - startTime->tm_hour * 60 - startTime->tm_min) * 60000000);
 
-	esp_light_sleep_start();
+	delay(5000);
+	esp_deep_sleep_start();
 }
 
 // split string and set time
@@ -169,17 +169,13 @@ void handelPower()
 		Serial.println("ESP: turn off");
 		powerOff();
 	}
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
 }
 
 void handleSleep()
 {
 	Serial.println("ESP: sleep on");
-	server.send(200, "text/plain", "");
 	powerOff();
-	delay(5000);
 	sleep();
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
 }
 
 void handleStartTime()
@@ -275,8 +271,6 @@ void setup()
 	pinMode(pir, INPUT);
 	pinMode(button, INPUT);
 	pinMode(led, OUTPUT);
-
-	SPIFFS.remove("/data.txt");
 }
 
 void loop()

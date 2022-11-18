@@ -155,9 +155,9 @@ const char mainPage[] PROGMEM = R"=====(
             request.open("POST", "sleep", false);
             request.send();
 
-            if(request.readyState == 4 && request.status == 200) {
+           
                 update(request);
-            } 
+            
         }
 
         function getDataButtonPress() {
@@ -198,15 +198,6 @@ const char mainPage[] PROGMEM = R"=====(
             else {
                 modeBtn.textContent = "Turn On";
             }
-            
-            if(sleep === "1") {
-                modeBtn.textContent = "Blocked";
-                sleepBtn.textContent = "Activated";
-                dataBtn.textContent = "Blocked";
-            }
-            else {
-                sleepBtn.textContent = "Turn On";
-            }
 
             if(startTime !== "not set") {
                 document.getElementById('time1').value = startTime;            
@@ -214,6 +205,15 @@ const char mainPage[] PROGMEM = R"=====(
 
             if(endTime !== "not set") {
                 document.getElementById('time2').value = endTime; 
+            }
+
+            if(sleep === "1") {
+                modeBtn.textContent = "Blocked";
+                sleepBtn.textContent = "Activated";
+                dataBtn.textContent = "Blocked";
+            }
+            else {
+                sleepBtn.textContent = "Turn On";
             }
         }
 
