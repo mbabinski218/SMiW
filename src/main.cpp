@@ -48,7 +48,7 @@ void deepSleep()
 {
 	disable = true;
 	enableLed(false);
-	Serial.println("ESP: power off with sleep");
+	Serial.println("ESP: power off with deep sleep");
 	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 
 	File file = SPIFFS.open("/times.txt", FILE_WRITE);
@@ -81,10 +81,6 @@ void powerOff()
 {
 	disable = true;
 	enableLed(false);
-
-	if(shouldSleep)
-		deepSleep();
-
 	Serial.println("ESP: power off");
 	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 }
@@ -120,9 +116,7 @@ void ParseStringToTm(String &str, tm *t)
 void getLocalTimeFromNtpServer() 
 {
   	if(!getLocalTime(localTime))
-  	{
     	Serial.println("Failed to obtain time");
-  	}
 }
 
 void time()
@@ -144,7 +138,10 @@ void time()
 		int end = localTime->tm_hour * 60 + localTime->tm_min - endTime->tm_hour * 60 - endTime->tm_min;
 		if(!disable && end == 0)
 		{
-			powerOff();
+			if(shouldSleep)
+				deepSleep();					
+			else
+				powerOff();
 			return;
 		}
 	}
@@ -163,14 +160,18 @@ void handleInfo()
 
 void handleData()
 {
-	File file = SPIFFS.open("/data.txt", FILE_READ);
+	Serial.println("ESP: send data");
+	File file = SPIFFS.open("/montion.txt", FILE_READ);
 	String data = "";
 
-	while(file.available()) 
-        data = file.readString();
+	if(file)
+		while(file.available()) 
+        	data = file.readString();
+	else
+		Serial.println("ESP: there was an error opening the file");
 
-	xml::sendData(server, data);
 	file.close();
+	xml::sendData(server, data);
 }
 
 void handelPower()
@@ -244,7 +245,7 @@ void checkFlash()
 {
 	if(SPIFFS.usedBytes() >= SPIFFS.totalBytes() - 300000)
 	{
-		SPIFFS.remove("/data.txt");
+		SPIFFS.remove("/montion.txt");
 		Serial.println("ESP: data cleared");
 	}
 }
@@ -366,14 +367,10 @@ void loop()
 				String temp = (String)localTime->tm_mday + "." + (String)(localTime->tm_mon + 1) + "." + (String)(localTime->tm_year + 1900) + " " + hour + ":" + min;
 				Serial.println("ESP: detected - " + temp);
 
-				File file = SPIFFS.open("/data.txt", FILE_APPEND);
+				File file = SPIFFS.open("/montion.txt", FILE_APPEND);
 				if(file)
-				{
 					if(!file.println(temp))
 						Serial.println("ESP: file append failed");
-				}
-				else
-					Serial.println("ESP: there was an error opening the file");
 
 				file.close();
 			}

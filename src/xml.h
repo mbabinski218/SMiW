@@ -58,7 +58,7 @@ void xml::sendData(WebServer &server, String &data)
 {
     char XML[data.length() + 200];
     char temp[data.length() + 1];
-
+    
     // header
     strcpy(XML, "<?xml version = '1.0'?>\n<Data>\n");
 
