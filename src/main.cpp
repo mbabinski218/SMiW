@@ -14,9 +14,9 @@ const char *password = "esp32!!!";
 WebServer server(80);
 
 // pinout
-const int speaker = 25;
+const int speaker = 33;
 const int pir = 32;
-const int button = 33;
+const int button = 25;
 const int led = 2;
 
 // time
@@ -32,20 +32,48 @@ tm* endTime = nullptr;
 // global variables
 int buttonLastState = HIGH;
 int buttonCurrentState = HIGH;
-bool isSleep = false;
-bool disable = true;
 bool shouldSave = true;
+bool programStart = true;
+bool disable = true;
+RTC_DATA_ATTR bool shouldSleep = false;
 
-// generates a number between min and max
-int randomFrequencyGenerator(int min, int max)
-{
-	return rand() % (max - min + 1) + min;
-}
-
-// controls the esp32 built-in led
+// controls the esp built-in led
 void enableLed(bool value)
 {
 	value == true ? digitalWrite(led, HIGH) : digitalWrite(led, LOW);
+}
+
+// starts the sleep mode
+void deepSleep()
+{
+	disable = true;
+	enableLed(false);
+	Serial.println("ESP: power off with sleep");
+	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
+
+	File file = SPIFFS.open("/times.txt", FILE_WRITE);
+	if(file)
+	{
+		if(!file.println(startTimeString + "\n" + endTimeString))
+			Serial.println("ESP: file write failed");
+	}
+	else
+		Serial.println("ESP: there was an error opening the file");
+	file.close();
+
+	if(startTime != nullptr)
+	{
+		long long temp = (startTime->tm_hour * 60 + startTime->tm_min - localTime->tm_hour * 60 - localTime->tm_min) * 60000000;
+		
+		if(temp < 0)
+			temp += 24ll * 60ll * 60000000ll;
+		
+		Serial.println("Sleep for: " + (String)temp);
+		esp_sleep_enable_timer_wakeup(temp);
+	}
+
+	delay(5000);
+	esp_deep_sleep_start();
 }
 
 // starts the modem sleep mode
@@ -53,33 +81,21 @@ void powerOff()
 {
 	disable = true;
 	enableLed(false);
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
+
+	if(shouldSleep)
+		deepSleep();
+
+	Serial.println("ESP: power off");
+	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 }
 
 // method that will be executed after exiting the sleep mode
 void powerOn()
 {
 	disable = false;
-	isSleep = false;
 	enableLed(true);
-	Serial.println(esp_sleep_get_wakeup_cause()); // ext0 = 2, wifi = 9, time = 4
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
-}
-
-// starts the sleep mode
-void sleep()
-{
-	disable = true;
-	isSleep = true;
-	enableLed(false);
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
-
-	esp_sleep_enable_ext0_wakeup(GPIO_NUM_33, LOW);
-	if(startTime != nullptr)
-		esp_sleep_enable_timer_wakeup((localTime->tm_hour * 60 + localTime->tm_min - startTime->tm_hour * 60 - startTime->tm_min) * 60000000);
-
-	delay(5000);
-	esp_deep_sleep_start();
+	Serial.println("ESP: power on");
+	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 }
 
 // split string and set time
@@ -142,7 +158,7 @@ void handleOnConnect()
 
 void handleInfo()
 {
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
+	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 }
 
 void handleData()
@@ -160,22 +176,24 @@ void handleData()
 void handelPower()
 {
 	if(disable)
-	{
-		Serial.println("ESP: turn on");
 		powerOn();
-	}
 	else
-	{
-		Serial.println("ESP: turn off");
 		powerOff();
-	}
 }
 
 void handleSleep()
 {
-	Serial.println("ESP: sleep on");
-	powerOff();
-	sleep();
+	if(!shouldSleep)
+	{
+		Serial.println("ESP: sleep mode on");
+		shouldSleep = true;
+	}
+	else
+	{
+		Serial.println("ESP: sleep mode off");
+		shouldSleep = false;
+	}
+	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 }
 
 void handleStartTime()
@@ -192,7 +210,7 @@ void handleStartTime()
 		startTime = new tm();
 		ParseStringToTm(startTimeString, startTime);
 	}
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
+	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 }
 
 void handleEndTime()
@@ -209,7 +227,7 @@ void handleEndTime()
 		endTime = new tm();
 		ParseStringToTm(endTimeString, endTime);
 	}
-	xml::sendInfo(server, disable, isSleep, startTimeString, endTimeString);
+	xml::sendInfo(server, disable, shouldSleep, startTimeString, endTimeString);
 }
 
 void checkWifi()
@@ -233,16 +251,15 @@ void checkFlash()
 
 void setup()
 {
+	// set serial monitor
+	Serial.begin(9600);
+
 	// disable bluetooth
 	btStop();
 
 	// configure time
 	localTime = new tm();
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-	// set serial monitor
-	Serial.begin(9600);
-	//Serial.begin(115200);
 
 	// enable wifi
 	WiFi.mode(WIFI_STA);
@@ -271,6 +288,40 @@ void setup()
 	pinMode(pir, INPUT);
 	pinMode(button, INPUT);
 	pinMode(led, OUTPUT);
+
+	// checks whether the first start or exit from deep sleep mode
+	if(esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER)
+	{
+		Serial.println("ESP: wake up");
+
+		File file = SPIFFS.open("/times.txt", FILE_READ);
+		String data = "";
+
+		while(file.available()) 
+			data = file.readString();
+
+		
+		int temp = data.indexOf("\n");
+		startTimeString = data.substring(0, temp);
+		endTimeString = data.substring(temp + 1, data.length() - 2);
+
+		if(startTimeString != "not set")
+		{
+			startTime = new tm();
+			ParseStringToTm(startTimeString, startTime);
+		}
+
+		if(startTimeString != "not set")
+		{
+			endTime = new tm();
+			ParseStringToTm(endTimeString, endTime);
+		}
+
+		file.close();		
+		powerOn();
+	}
+	else
+		Serial.println("ESP: start");
 }
 
 void loop()
@@ -279,35 +330,29 @@ void loop()
 	checkWifi();
 	server.handleClient();
 
-	// time
+	// handle time
 	time();
 
-	// button
+	// handle button click
 	buttonCurrentState = digitalRead(button);
-	if (buttonCurrentState == LOW && buttonLastState == HIGH)
+	if (buttonCurrentState == LOW && buttonLastState == HIGH && !programStart)
 	{
-		if (!isSleep)
-		{
-			Serial.println("ESP: sleep on");
-			sleep();
-		}
+		if (!disable)		
+			powerOff();
 		else
-		{
-			Serial.println("ESP: sleep off");
 			powerOn();
-		}
 	}
 	buttonLastState = buttonCurrentState;
 
 	// is pir and buzzer enable
 	if (!disable)
 	{
-		// pir and buzzer
+		// check if motion has been detected
 		int detected = digitalRead(pir);
 		if (detected == HIGH)
 		{			
 			// tone
-			tone(speaker, 18000);
+			digitalWrite(speaker, HIGH);
 
 			// check flash
 			checkFlash();
@@ -335,8 +380,12 @@ void loop()
 		}
 		else
 		{
-			tone(speaker, 0);
+			// disable tone
+			digitalWrite(speaker, LOW);
 			shouldSave = true;
 		}
+
 	}
+
+	programStart = false;
 }

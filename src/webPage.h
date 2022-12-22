@@ -154,10 +154,10 @@ const char mainPage[] PROGMEM = R"=====(
             var request = new XMLHttpRequest();
             request.open("POST", "sleep", false);
             request.send();
-
            
+            if(request.readyState == 4 && request.status == 200) {
                 update(request);
-            
+            }            
         }
 
         function getDataButtonPress() {
@@ -208,9 +208,7 @@ const char mainPage[] PROGMEM = R"=====(
             }
 
             if(sleep === "1") {
-                modeBtn.textContent = "Blocked";
-                sleepBtn.textContent = "Activated";
-                dataBtn.textContent = "Blocked";
+                sleepBtn.textContent = "Turn Off";
             }
             else {
                 sleepBtn.textContent = "Turn On";
